@@ -184,6 +184,10 @@ function centred(pts, draw) {
 }
 function paint(pts, o = {}) { centred(pts, (P) => paintAt(P, o)); }
 function paintAt(pts, o) {
+  if (PROJECT.washShading && o.fill && !o.hatch) {
+    o = { ...o, wash: o.wash ? mixCol(o.wash, o.fill, Math.min(.4, (o.fillOp ?? 170) / 510)) : o.fill,
+      washOp: o.wash ? (o.washOp ?? 255) : (o.fillOp ?? 170), fill: null };
+  }
   if (o.wash || o.fill || o.hatch) {
     if (o.wash) brush.wash(o.wash, o.washOp ?? 255); else brush.noWash();
     if (o.fill) { brush.fill(o.fill, o.fillOp ?? 170); brush.fillBleed(o.bleed ?? .1); brush.fillTexture(o.tex ?? .4, o.border ?? .35); } else brush.noFill();
@@ -277,7 +281,7 @@ async function setup() {
   brush.scaleBrushes(5); defineBrushes();
   paperG = makePaper(); grainC = makeGrain(); glowTex = makeGlowTex(); letG = createGraphics(W, H); letG.pixelDensity(1);
   outC = document.getElementById('out'); outX = outC.getContext('2d');
-  await Promise.all([document.fonts.load('100px "Permanent Marker"'), document.fonts.load('800 50px "Shantell Sans"'), ...(window.EXTRA_FONTS || []).map(([f, txt]) => document.fonts.load(f, txt))]);
+  await document.fonts.load('100px "Permanent Marker"');
   window.ready = true;
   if (!location.search.includes('render')) devUI();
 }
@@ -286,6 +290,7 @@ function draw() {
   LETTERS = []; CAM = LAST_CAM = null;
   push(); translate(-W / 2, -H / 2);
   BOILN = Math.floor(T * BOIL); CLAWD_N = 0; boilSeed('frame'); noiseSeed(77);
+  if (typeof resetFx === 'function') resetFx();
   image(paperG, 0, 0);
   drawWorld(T);
   pop();
@@ -295,9 +300,9 @@ function composite(t) {
   c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
   c.drawImage(drawingContext.canvas, 0, 0, W, H);
   drawLetters(c);
+  if (typeof postFx === 'function') postFx(c, t);   // per-frame post effects (e.g. counter.js's GLITCH)
   c.globalCompositeOperation = 'multiply'; c.drawImage(grainC, 0, 0);
   c.globalCompositeOperation = 'source-over';
-  if (window.overlayHook) window.overlayHook(c, t);   // optional crisp 2D overlay on top of the grain (e.g. karaoke, see src/karaoke.js)
 }
 window.renderAt = async (t, type = 'image/png', q = .92) => { T = t; await redraw(); composite(t); return outC.toDataURL(type, q); };
 // Contact sheet of several times, for visual checks: returns { url, ms[] }. crop = [x, y, w, h] fills each cell with just

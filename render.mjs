@@ -70,7 +70,7 @@ async function openPage(tag = '') {
   const page = await browser.newPage();
   page.on('console', m => { if (['error', 'warn'].includes(m.type())) console.log(`[page${tag}]`, m.text()); });
   page.on('pageerror', e => console.log(`[page error${tag}]`, e.message));
-  await page.goto(pathToFileURL(resolve('studio.html')).href + '?render', { waitUntil: 'networkidle0' });
+  await page.goto(pathToFileURL(resolve(args.page || 'studio.html')).href + '?render', { waitUntil: 'networkidle0' });
   await page.waitForFunction('window.ready === true', { timeout: 60000 });
   if (args.loop) {
     const ok = await page.evaluate(name => { if (!LOOPS[name]) return false; window.LOOP = LOOPS[name]; return true; }, args.loop);
@@ -126,7 +126,7 @@ if (args.sheet || args.strip) {
     const page = await openPage('#' + w);
     while (next < todo.length) {
       const i = todo[next++], f = `${FRAMES_DIR}/f${String(i).padStart(5, '0')}.jpg`;
-      const buf = await frameOf(page, i / fps, 'image/jpeg', .94);
+      const buf = await frameOf(page, i / fps, 'image/jpeg', +(args.quality || .92));
       writeFileSync(f + '.tmp', buf); renameSync(f + '.tmp', f);
       if (++done % 24 === 0 || done === todo.length) {
         const el = (Date.now() - start) / 1000;
@@ -154,4 +154,7 @@ if (args.sheet || args.strip) {
 } else {
   console.log('nothing to do: see the usage notes at the top of render.mjs');
 }
-await browser.close();
+// Chrome sometimes hangs on close after the output is written: give it 3 s, then leave regardless.
+await Promise.race([browser.close().catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
+try { browser.process()?.kill('SIGKILL'); } catch (e) {}
+process.exit(0);

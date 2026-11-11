@@ -69,7 +69,7 @@ function clawd(x, y, u, o = {}) {
   const V = VIEWS[o.view] || VIEWS.front;
   const dy = (o.dy || 0) * u, sq = (o.sq || 0) + (o.take || 0), sm = clamp(o.smear || 0);
   const sw = clamp(u / 15, .45, 2.4) * (o.swMul || 1), J = u * .07;
-  const { col, dk, lt } = tintCols(o), far = mixCol(dk, PAL.ink, .22);
+  const { col, dk, lt } = tintCols(o), far = mixCol(dk, PAL.ink, .22), IK = o.inkCol || PAL.ink;
 
   rs('shadow');
   if (!o.noShadow) {
@@ -86,22 +86,38 @@ function clawd(x, y, u, o = {}) {
   const arm = ([px, dir, which, layer]) => {
     rs('arm' + which);
     const a = which === 'L' ? (o.aL ?? .2) : (o.aR ?? .2), hook = which === 'L' ? o.armL : o.armR;
+    const AL = 2.2 * (typeof o.armLen === 'object' ? (o.armLen[which] ?? 1) : (o.armLen ?? 1));   // arm length in u
     // a raised (or dropped) arm slides its root out to the body's edge, so it stands beside the body instead of behind it
     push(); translate((px + dir * .55 * clamp((Math.abs(a) - .7) / .9)) * u, -4.5 * u);
     if (dir === 0) {   // side view: the near arm reaches forward past the front edge; a raises it, a < 0 lowers it
       translate(0, .3 * u); rotate(.7 - a);
-      paint(rectPts(-.2 * u, -.45 * u, 2.3 * u, .9 * u, J * .6), { wash: col, washOp: 255, fill: dk, fillOp: 60, tex: .5, ink: PAL.ink, sw: sw * .8 });
-      if (hook) { translate(2.1 * u, 0); hook(u, sw); }
+      if (o.sleeve && o.armCol) {
+        paint(rectPts(-.2 * u, -.45 * u, (AL + .1) * u, .9 * u, J * .6), { wash: col, washOp: 255, ink: null });
+        paint(rectPts(-.2 * u, -.5 * u, (.1 + AL * clamp(o.sleeve)) * u, u, J * .5), { wash: o.armCol, washOp: 255, fill: mixCol(o.armCol, PAL.ink, .3), fillOp: 50, tex: .5, ink: null });
+        paint(rectPts(-.2 * u, -.45 * u, (AL + .1) * u, .9 * u, J * .6), { ink: IK, sw: sw * .8 });
+      } else paint(rectPts(-.2 * u, -.45 * u, (AL + .1) * u, .9 * u, J * .6), { wash: col, washOp: 255, fill: dk, fillOp: 60, tex: .5, ink: IK, sw: sw * .8 });
+      if (o.armDeco) o.armDeco(u, sw, which, layer);
+      if (hook) { translate((AL - .1) * u, 0); hook(u, sw); }
     } else {
       rotate(dir < 0 ? a : -a);
-      paint(rectPts(dir < 0 ? -2.2 * u : 0, -.5 * u, 2.2 * u, u, J * .6), { wash: layer === 2 ? mixCol(col, dk, .4) : col, washOp: 255, fill: dk, fillOp: 60, tex: .5, ink: PAL.ink, sw: sw * .8 });
-      if (hook) { translate(dir * 2.2 * u, 0); if (dir < 0) scale(-1, 1); hook(u, sw); }
+      const skin = layer === 2 ? mixCol(col, dk, .4) : col, ax = dir < 0 ? -AL * u : 0;
+      if (o.sleeve && o.armCol) {   // a sleeve covers the root of the arm; the tip stays bare
+        const sl = clamp(o.sleeve) * AL * u, sc = layer === 2 ? mixCol(o.armCol, PAL.ink, .25) : o.armCol;
+        paint(rectPts(ax, -.5 * u, AL * u, u, J * .6), { wash: skin, washOp: 255, ink: null });
+        paint(rectPts(dir < 0 ? -sl : 0, -.56 * u, sl, 1.12 * u, J * .5), { wash: sc, washOp: 255, fill: mixCol(sc, PAL.ink, .3), fillOp: 50, tex: .5, ink: null });
+        paint(rectPts(ax, -.5 * u, AL * u, u, J * .6), { ink: IK, sw: sw * .8 });
+        if (sl < (AL - .1) * u) inkLine([[dir * sl, -.56 * u], [dir * sl, .56 * u]], sw * .5, IK, 'inkfine', 0);
+      } else paint(rectPts(ax, -.5 * u, AL * u, u, J * .6), { wash: skin, washOp: 255, fill: dk, fillOp: 60, tex: .5, ink: IK, sw: sw * .8 });
+      if (o.armDeco) { push(); if (dir < 0) scale(-1, 1); o.armDeco(u, sw, which, layer, AL); pop(); }   // arm space: x runs 0..AL*u outward
+      if (hook) { translate(dir * AL * u, 0); if (dir < 0) scale(-1, 1); hook(u, sw); }
     }
     pop();
   };
 
-  // arms behind, then legs (under the body), then the body, then arms in front
-  V.arms.filter(a => a[3] !== 1).forEach(arm);
+  // arms behind, then legs (under the body), then the body, then arms in front (o.frontArm pulls one arm forward)
+  // o.frontArm: 'L', 'R', or 'LR' (both, e.g. crossed at the chest)
+  const fa = o.frontArm, isFront = a => a[3] === 1 || (fa && (fa === 'LR' || a[2] === fa) && a[1] !== 0);
+  V.arms.filter(a => !isFront(a)).forEach(arm);
   if (!o.noLegs) V.legs.forEach(([lx, isFar], i) => {
     rs('leg' + i);
     let h = 2.2, sx = 0;
@@ -111,7 +127,16 @@ function clawd(x, y, u, o = {}) {
         sx = Math.sin(ph) * .55; h = 2.2 - Math.max(0, Math.cos(ph)) * .8;
       } else { const ph = Math.sin((o.walk + (i % 2 ? .5 : 0)) * TAU); if (ph > 0) h = 2.2 - ph * .9; }
     }
-    paint(rectPts((lx + sx) * u, -2.4 * u, u, h * u, J * .6), { wash: isFar ? far : dk, washOp: 255, ink: PAL.ink, sw: sw * .8 });
+    // o.legLift [4] 0..1 retracts a foot (a step or a knee-up); o.legSplay (number: wide stance, or [4]) slants a leg so its
+    // foot sits that many u further out, keeping its top on the body
+    if (o.legLift) h = Math.min(h, 2.2 - 1.25 * clamp(o.legLift[i] || 0));
+    const sp = o.legSplay == null ? 0 : Array.isArray(o.legSplay) ? (o.legSplay[i] || 0) : o.legSplay * [-1, -.4, .4, 1][i] * (o.view === 'side' ? .3 : 1);
+    const lc = isFar ? (o.legFar || far) : (o.legCol || dk);
+    const lp = sp ? (() => { const x0 = (lx + sx) * u, y0 = -2.4 * u, w = u, hh = h * u, db = sp * u * (hh / (2.2 * u)), j = J * .6;
+      return [[x0 + jit(j), y0], [x0 + w + jit(j), y0], [x0 + w + db + jit(j), y0 + hh + jit(j)], [x0 + db + jit(j), y0 + hh + jit(j)]]; })()
+      : rectPts((lx + sx) * u, -2.4 * u, u, h * u, J * .6);
+    if (o.legPat) { paint(lp, { wash: lc, washOp: 255, ink: null }); o.legPat((lx + sx) * u, -2.4 * u, u, h * u, isFar, u, sw); paint(lp, { ink: IK, sw: sw * .8 }); }
+    else paint(lp, { wash: lc, washOp: 255, ink: IK, sw: sw * .8 });
   });
 
   rs('body');
@@ -123,11 +148,10 @@ function clawd(x, y, u, o = {}) {
     const px = V.strip ? (V.strip[0] < 0 ? (V.seam + V.R) / 2 - 1.2 : (V.L + V.seam) / 2 - .6) : -1.6 * wk;
     paint(ellPts(px * u, -6.4 * u, 3.4 * u * (V.strip ? .75 : wk), 1.5 * u, 18, J * 2, -.08), { fill: lt, fillOp: V.back ? 80 : 120, bleed: .2, tex: .85, border: .8, ink: null });
     paint(rectPts(L + .2 * u, -3.8 * u, R - L - .4 * u, 1.6 * u, J), { fill: dk, fillOp: 120, bleed: .03, tex: .7, border: .5, ink: null });
-    if (V.strip) {
-      paint(rectPts(V.strip[0] * u, -8 * u, (V.strip[1] - V.strip[0]) * u, 6 * u, J * .5), { fill: dk, fillOp: 150, bleed: .04, tex: .6, border: .4, ink: null });
-      inkLine([[V.seam * u + jit(J), -7.9 * u], [V.seam * u + jit(J), -5 * u], [V.seam * u + jit(J), -2.1 * u]], sw * .55, PAL.ink, 'inkfine', 0);
-    }
-    paint(body, { ink: PAL.ink, sw });
+    if (V.strip) paint(rectPts(V.strip[0] * u, -8 * u, (V.strip[1] - V.strip[0]) * u, 6 * u, J * .5), { fill: dk, fillOp: 150, bleed: .04, tex: .6, border: .4, ink: null });
+    if (o.outfit) { rs('outfit'); o.outfit(u, sw, V, J, null, col); }
+    if (V.strip) inkLine([[V.seam * u + jit(J), -7.9 * u], [V.seam * u + jit(J), -5 * u], [V.seam * u + jit(J), -2.1 * u]], sw * .55, IK, 'inkfine', 0);
+    paint(body, { ink: IK, sw });
     if (o.gloom > .02) gloom(u, sw, V, o.gloom);
     if (V.face) {
       const F = V.face;
@@ -136,13 +160,15 @@ function clawd(x, y, u, o = {}) {
       if (o.hat === 'mask' && F.sides.length > 1) paint([[-5.5 * u, -7.7 * u], [5.5 * u, -7.7 * u], [4.4 * u, -4.7 * u], [.6 * u, -5.4 * u], [-.6 * u, -5.4 * u], [-4.4 * u, -4.7 * u]], { wash: PAL.violet, ink: PAL.ink, sw: sw * .7 });
       rs('eyes'); eyes(u, o, sw, F.sides, sm); rs('mouth');
       push(); translate(F.mx * u, 0); mouth(u, o.mouth, sw); pop();
+      if (o.face) { rs('face'); o.face(u, sw, F, V); }
       if (['cat', 'masq', 'bowtie'].includes(o.hat)) faceHat(u, o.hat, sw, F.sides);
       pop();
     }
-    rs('hat'); push(); translate(V.hat * u, 0); scale(V.hw, 1); hat(u, o.hat, sw); pop();
+    rs('hat'); push(); translate(V.hat * u, 0); scale(V.hw, 1); hat(u, o.hat, sw); if (o.head) { rs('head'); o.head(u, sw, V); } pop();
   }
-  V.arms.filter(a => a[3] === 1).forEach(arm);
-  rs('draw'); if (o.draw) o.draw(u, sw);
+  rs('draw'); if (o.draw && !o.drawOver) o.draw(u, sw);
+  V.arms.filter(isFront).forEach(a => arm(fa && (fa === 'LR' || a[2] === fa) ? [a[0], a[1], a[2], 1] : a));
+  if (o.draw && o.drawOver) o.draw(u, sw);
   pop();
 
   rs('emote');
@@ -166,21 +192,24 @@ function lunchbox(u, o, sw, J, lid, col, dk, lt) {
   // lower jaw
   paint(rectPts(-5 * u, hy, 10 * u, 3.1 * u, J), { wash: col, washOp: 255, ink: null });
   paint(rectPts(-4.8 * u, -3.8 * u, 9.6 * u, 1.6 * u, J), { fill: dk, fillOp: 120, bleed: .03, tex: .7, border: .5, ink: null });
+  if (o.outfit) o.outfit(u, sw, VIEWS.front, J, hy, col);
   // the open mouth: a dark wedge from the hinge to the lid's far corner, with the tongue lying in it
-  paint([[-5 * u, hy], [5 * u, hy], [-5 * u + 10 * u * Math.cos(A), hy - 10 * u * Math.sin(A)]], { wash: '#4A1F2A', ink: null });
+  paint([[-5 * u, hy], [5 * u, hy], [-5 * u + 10 * u * Math.cos(A), hy - 10 * u * Math.sin(A)]], { wash: o.mouthCol || '#4A1F2A', ink: null });
   const th = Math.min(.5 * u, .3 * gap(1.8 * u));
   if (th > .08 * u) paint(ellPts(1.8 * u, hy - th * .7, 2.2 * u, th, 16), { wash: PAL.rose, fill: '#E2476E', fillOp: 60, ink: null });
   for (let i = 0; i < 6; i++) tooth(-4.4 * u + i * 1.6 * u, -1);
-  paint(rectPts(-5 * u, hy, 10 * u, 3.1 * u, J), { ink: PAL.ink, sw });
+  paint(rectPts(-5 * u, hy, 10 * u, 3.1 * u, J), { ink: o.inkCol || PAL.ink, sw });
   // lid
   push(); translate(-5 * u, hy); rotate(-A); translate(5 * u, -hy);
   paint(rectPts(-5 * u, -8 * u, 10 * u, 2.9 * u, J), { wash: col, washOp: 255, ink: null });
   paint(ellPts(-1.6 * u, -6.9 * u, 3.2 * u, 1 * u, 16, J), { fill: lt, fillOp: 110, bleed: .15, tex: .8, border: .8, ink: null });
   for (let i = 0; i < 5; i++) tooth(-3.6 * u + i * 1.6 * u, 1);
-  paint(rectPts(-5 * u, -8 * u, 10 * u, 2.9 * u, J), { ink: PAL.ink, sw });
+  paint(rectPts(-5 * u, -8 * u, 10 * u, 2.9 * u, J), { ink: o.inkCol || PAL.ink, sw });
   if (o.gloom > .02) gloom(u, sw, VIEWS.front, o.gloom);
   eyes(u, o, sw, [-1, 1], 0);
+  if (o.face) o.face(u, sw, VIEWS.front.face, VIEWS.front, true);
   hat(u, o.hat, sw);
+  if (o.head) o.head(u, sw, VIEWS.front, true);
   pop();
 }
 
@@ -311,6 +340,14 @@ function eye(e, s, u, o, sw) {
       inkLine(sp, sw * .6, PAL.ink, 'inkfine', .6); break;
     }
     case 'dot': paint(ellPts(lx * .5, ly * .5, u * .45, u * .55, 12), { wash: PAL.ink, ink: null }); break;
+    case 'glow': case 'glowRed': {   // the Ink's eyes: pale (or red) slits that shine
+      const red = e === 'glowRed' || (o.red || 0) > .5, k = o.eyeGlow ?? 1;
+      glow(lx, ly, u * 2.4, red ? '#FF3B2E' : '#D8F0A0', .8 * k);
+      paint(rectPts(-.5 * u + lx, -1.05 * u + ly, u, 2.1 * u, u * .04), { wash: red ? '#FF5A43' : '#F4EDC9', ink: null });
+      if (u > 9) paint(rectPts(-.18 * u + lx, -.7 * u + ly, .36 * u, 1.3 * u, u * .03), { wash: red ? '#FFD0B8' : '#FFFFF0', washOp: 230, ink: null });
+      break;
+    }
+    case 'none': break;
     default: slit(1, 2);
   }
 }
@@ -354,6 +391,21 @@ function mouth(u, m, sw) {
     case 'yawn':
       paint(ellPts(0, -4.1 * u, u * .6, u * 1.05, 14), { wash: dark, ink: PAL.ink, sw: sw * .6 });
       paint(ellPts(0, -3.45 * u, u * .38, u * .25, 10), { wash: PAL.rose, ink: null }); break;
+    case 'sing':   // mid-note: an open, rounded mouth with a row of top teeth
+      paint(P([[-1, -4.75], [1, -4.75], [.85, -3.75], [0, -3.35], [-.85, -3.75]]), { wash: dark, ink: PAL.ink, sw: sw * .6, curv: .5 });
+      paint(P([[-.8, -4.7], [.8, -4.7], [.7, -4.4], [-.7, -4.4]]), { wash: PAL.cream, ink: null });
+      paint(ellPts(0, -3.7 * u, .5 * u, .2 * u, 10), { wash: PAL.rose, ink: null }); break;
+    case 'belt':   // full voice: a big square-ish shout
+      paint(P([[-1.5, -4.95], [1.5, -4.95], [1.25, -3.2], [0, -2.85], [-1.25, -3.2]]), { wash: dark, ink: PAL.ink, sw: sw * .65, curv: .3 });
+      paint(P([[-1.3, -4.9], [1.3, -4.9], [1.2, -4.5], [-1.2, -4.5]]), { wash: PAL.cream, ink: null });
+      paint(ellPts(0, -3.25 * u, .8 * u, .28 * u, 12), { wash: PAL.rose, ink: null }); break;
+    case 'jag': {  // the Ink's grin: a pale crescent of jagged teeth, corners turned up
+      const N = 12, top = [], bot = [], Z = [];
+      for (let i = 0; i <= N; i++) { const x = -2.7 + 5.4 * i / N, q = 1 - Math.pow(x / 2.7, 2); top.push([x, -5.0 + .6 * q]); bot.push([x, -5.0 + 1.7 * q]); Z.push([x, -5.0 + (i % 2 ? 1.35 : .85) * q]); }
+      paint(P(top.concat(bot.slice().reverse())), { wash: '#F1E8C8', ink: '#8E7FAF', sw: sw * .4 });
+      inkLine(P(Z), sw * .6, '#2A2140', 'inkfine', 0);
+      break;
+    }
   }
 }
 
@@ -587,6 +639,7 @@ function feel(name, t, over = {}) {
 // its new motion with overshoot, colour, blush and gloom cross-fade, and the new emote pops in. o.take scales every take.
 // Spread the result into clawd() and add any other pose: clawd(x, y, u, { ...emotions(t, keys), view: 'q' }).
 function emotions(t, keys, o = {}) {
+  if (o.base) { const b = o.base; keys = keys.map(k => [k[0], k[1], { ...b, ...(k[2] || {}) }]); }
   let i = 0; while (i + 1 < keys.length && t >= keys[i + 1][0]) i++;
   const [tc, name, over] = keys[i], age = t - tc, cur = feel(name, t, over);
   const tn = i + 1 < keys.length ? keys[i + 1][0] : Infinity, tkS = o.take ?? 1;
