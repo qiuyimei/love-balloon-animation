@@ -17,6 +17,10 @@
 | 下载当前完整源码 | [当前版本 ZIP](https://github.com/qiuyimei/love-balloon-animation/archive/refs/heads/main.zip) |
 | 浏览当前工程 | [仓库文件](.) |
 
+<!-- final-delivery:20261111 -->
+
+> **最终完整版资料：** [完整工程、详细文档与影片](https://github.com/qiuyimei/love-balloon-animation/releases/tag/final-delivery-20261111)
+
 <!-- project-showcase:end -->
 
 ---
