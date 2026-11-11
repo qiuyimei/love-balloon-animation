@@ -13,8 +13,8 @@
 
 | 时间（原记录） | 改动说明 | 源码 | 下载 |
 |---|---|---|---|
-| 2026-11-11 11:43:39 | 【恢复快照】Recover Preview source from retained source (2026-11-11) | [06f822ad8e](https://github.com/qiuyimei/love-balloon-animation/tree/06f822ad8eefcb9b9ed59282c9013af3baac9b5f) | [ZIP](https://github.com/qiuyimei/love-balloon-animation/archive/06f822ad8eefcb9b9ed59282c9013af3baac9b5f.zip) |
-| 2026-11-11 11:43:46 | 【恢复快照】Recover Full-song source from retained source (2026-11-11) | [4b8e853aed](https://github.com/qiuyimei/love-balloon-animation/tree/4b8e853aedbaa31b4b674019e1ccb7be9af69939) | [ZIP](https://github.com/qiuyimei/love-balloon-animation/archive/4b8e853aedbaa31b4b674019e1ccb7be9af69939.zip) |
+| 2026-11-11 11:43:39 | 【恢复快照】变更 39 个文件（新增 39）；涉及 `analyze_extended_audio.py`、`check_cached_frames.mjs`、`gpu_probe.mjs`<br>原始记录：Recover Preview source from retained source (2026-11-11) | [06f822ad8e](https://github.com/qiuyimei/love-balloon-animation/tree/06f822ad8eefcb9b9ed59282c9013af3baac9b5f) | [ZIP](https://github.com/qiuyimei/love-balloon-animation/archive/06f822ad8eefcb9b9ed59282c9013af3baac9b5f.zip) |
+| 2026-11-11 11:43:46 | 【恢复快照】变更 61 个文件（新增 28、修改 7、删除 26）；涉及 `analyze_extended_audio.py`、`build_fast_canvas.mjs`、`check_audio_cues.py`<br>原始记录：Recover Full-song source from retained source (2026-11-11) | [4b8e853aed](https://github.com/qiuyimei/love-balloon-animation/tree/4b8e853aedbaa31b4b674019e1ccb7be9af69939) | [ZIP](https://github.com/qiuyimei/love-balloon-animation/archive/4b8e853aedbaa31b4b674019e1ccb7be9af69939.zip) |
 
 ## 核验
 
